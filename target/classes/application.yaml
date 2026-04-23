@@ -4,7 +4,6 @@ spring:
   datasource:
     url: jdbc:sqlite:database.db
     driver-class-name: org.sqlite.JDBC
-
   jpa:
     hibernate:
       ddl-auto: update
@@ -12,7 +11,6 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.community.dialect.SQLiteDialect
-
   mail:
     host: smtp.gmail.com
     port: 587
@@ -24,3 +22,6 @@ spring:
           auth: true
           starttls:
             enable: true
+
+server:
+  port: ${PORT:8080}
