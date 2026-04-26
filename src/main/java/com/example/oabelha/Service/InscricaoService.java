@@ -29,7 +29,8 @@ public class InscricaoService {
         this.mailSender = mailSender;
     }
 
-    public Inscricao criarInscricao(Long eventoId, String nome, String email, int numPessoas) {
+    public Inscricao criarInscricao(Long eventoId, String nome, String email,
+                                    String telefone, String metodoPagamento, int numPessoas) {
         Event evento = eventRepository.findById(eventoId)
                 .orElseThrow(() -> new RuntimeException("Evento não encontrado"));
 
@@ -37,7 +38,6 @@ public class InscricaoService {
             throw new RuntimeException("Inscrições encerradas para este evento");
         }
 
-        // Verificar capacidade
         if (evento.getCapacidade() != null) {
             int ocupados = inscricaoRepository.contarLugaresOcupados(eventoId, LocalDateTime.now());
             if (ocupados + numPessoas > evento.getCapacidade()) {
@@ -49,12 +49,13 @@ public class InscricaoService {
         inscricao.setEvento(evento);
         inscricao.setNome(nome);
         inscricao.setEmail(email);
+        inscricao.setTelefone(telefone);
+        inscricao.setMetodoPagamento(metodoPagamento);
         inscricao.setNumPessoas(numPessoas);
         inscricao.setValorTotal(evento.getPreco() * numPessoas);
         inscricao.setReferenciaPagamento(UUID.randomUUID().toString().substring(0, 8).toUpperCase());
         inscricao.setExpiraEm(LocalDateTime.now().plusMinutes(30));
 
-        // Se evento for gratuito, confirmar imediatamente
         if (evento.getPreco() == 0.0) {
             inscricao.setEstado(Estado.CONFIRMADO);
             inscricao.setCodigoConfirmacao(UUID.randomUUID().toString().substring(0, 10).toUpperCase());
@@ -70,6 +71,36 @@ public class InscricaoService {
         return inscricao;
     }
 
+    public List<Inscricao> listarTodas() {
+        return inscricaoRepository.findAllByOrderByCreatedAtDesc();
+    }
+
+    public Inscricao atualizarStatus(Long id, String novoEstado) {
+        Inscricao inscricao = inscricaoRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Inscrição não encontrada"));
+
+        Estado estado = switch (novoEstado.toLowerCase()) {
+            case "aceite" -> Estado.ACEITE;
+            case "rejeitado" -> Estado.REJEITADO;
+            default -> throw new RuntimeException("Estado inválido: " + novoEstado);
+        };
+
+        inscricao.setEstado(estado);
+        return inscricaoRepository.save(inscricao);
+    }
+
+    public List<Inscricao> listarPorEvento(Long eventoId) {
+        return inscricaoRepository.findByEventoIdOrderByCreatedAtDesc(eventoId);
+    }
+
+    public Integer lugaresDisponiveis(Long eventoId) {
+        Event evento = eventRepository.findById(eventoId)
+                .orElseThrow(() -> new RuntimeException("Evento não encontrado"));
+        if (evento.getCapacidade() == null) return null;
+        int ocupados = inscricaoRepository.contarLugaresOcupados(eventoId, LocalDateTime.now());
+        return evento.getCapacidade() - ocupados;
+    }
+
     public Inscricao confirmarPagamento(String referencia) {
         Inscricao inscricao = inscricaoRepository.findByReferenciaPagamento(referencia)
                 .orElseThrow(() -> new RuntimeException("Referência não encontrada"));
@@ -77,7 +108,7 @@ public class InscricaoService {
         if (inscricao.getEstado() == Estado.EXPIRADO) {
             throw new RuntimeException("Esta referência expirou");
         }
-        if (inscricao.getEstado() == Estado.CONFIRMADO) {
+        if (inscricao.getEstado() == Estado.CONFIRMADO || inscricao.getEstado() == Estado.ACEITE) {
             throw new RuntimeException("Pagamento já confirmado");
         }
 
@@ -90,19 +121,6 @@ public class InscricaoService {
         return inscricao;
     }
 
-    public List<Inscricao> listarPorEvento(Long eventoId) {
-        return inscricaoRepository.findByEventoIdOrderByCriadoEmDesc(eventoId);
-    }
-
-    public int lugaresDisponiveis(Long eventoId) {
-        Event evento = eventRepository.findById(eventoId)
-                .orElseThrow(() -> new RuntimeException("Evento não encontrado"));
-        if (evento.getCapacidade() == null) return 999;
-        int ocupados = inscricaoRepository.contarLugaresOcupados(eventoId, LocalDateTime.now());
-        return evento.getCapacidade() - ocupados;
-    }
-
-    // Expira pendentes a cada 5 minutos
     @Scheduled(fixedRate = 300000)
     public void expirarPendentes() {
         List<Inscricao> expirados = inscricaoRepository
@@ -121,12 +139,12 @@ public class InscricaoService {
             msg.setSubject("Reserva pendente – " + evento.getTitulo());
             msg.setText(
                     "Olá " + inscricao.getNome() + ",\n\n" +
-                            "A tua reserva para \"" + evento.getTitulo() + "\" foi recebida!\n\n" +
-                            "Para garantir o teu lugar, efectua o pagamento de " +
-                            String.format("%.2f€", inscricao.getValorTotal()) + " via MBWay ou Multibanco.\n\n" +
-                            "Referência de pagamento: " + inscricao.getReferenciaPagamento() + "\n\n" +
-                            "⚠️ Tens 30 minutos para pagar. Após esse prazo o lugar será libertado.\n\n" +
-                            "CRC O Abelha"
+                    "A tua reserva para \"" + evento.getTitulo() + "\" foi recebida!\n\n" +
+                    "Para garantir o teu lugar, efectua o pagamento de " +
+                    String.format("%.2f€", inscricao.getValorTotal()) + " via MBWay ou Multibanco.\n\n" +
+                    "Referência de pagamento: " + inscricao.getReferenciaPagamento() + "\n\n" +
+                    "⚠️ Tens 30 minutos para pagar. Após esse prazo o lugar será libertado.\n\n" +
+                    "CRC O Abelha"
             );
             mailSender.send(msg);
         } catch (Exception e) {
@@ -141,13 +159,13 @@ public class InscricaoService {
             msg.setSubject("Inscrição confirmada – " + evento.getTitulo());
             msg.setText(
                     "Olá " + inscricao.getNome() + ",\n\n" +
-                            "A tua inscrição em \"" + evento.getTitulo() + "\" está CONFIRMADA! 🎉\n\n" +
-                            "Pessoas: " + inscricao.getNumPessoas() + "\n" +
-                            "Data: " + evento.getDataEvento() + "\n" +
-                            "Local: " + evento.getLocal() + "\n\n" +
-                            "O teu código de entrada: " + inscricao.getCodigoConfirmacao() + "\n\n" +
-                            "Apresenta este código na entrada do evento.\n\n" +
-                            "Até lá!\nCRC O Abelha"
+                    "A tua inscrição em \"" + evento.getTitulo() + "\" está CONFIRMADA!\n\n" +
+                    "Pessoas: " + inscricao.getNumPessoas() + "\n" +
+                    "Data: " + evento.getDataEvento() + "\n" +
+                    "Local: " + evento.getLocal() + "\n\n" +
+                    "O teu código de entrada: " + inscricao.getCodigoConfirmacao() + "\n\n" +
+                    "Apresenta este código na entrada do evento.\n\n" +
+                    "Até lá!\nCRC O Abelha"
             );
             mailSender.send(msg);
         } catch (Exception e) {

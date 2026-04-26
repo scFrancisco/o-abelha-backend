@@ -6,38 +6,37 @@ import java.time.LocalDateTime;
 @Entity
 public class Inscricao {
 
-    public enum Estado { PENDENTE, CONFIRMADO, EXPIRADO, CANCELADO }
+    public enum Estado { PENDENTE, ACEITE, REJEITADO, CONFIRMADO, EXPIRADO, CANCELADO }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "evento_id", nullable = false)
     private Event evento;
 
     private String nome;
     private String email;
+    private String telefone;
+    private String metodoPagamento;
     private Integer numPessoas = 1;
 
     @Enumerated(EnumType.STRING)
     private Estado estado = Estado.PENDENTE;
 
-    // Referência única enviada ao utilizador para pagar
     @Column(unique = true)
     private String referenciaPagamento;
 
-    // Código de confirmação enviado por email após pagamento
     @Column(unique = true)
     private String codigoConfirmacao;
 
     private Double valorTotal;
 
-    private LocalDateTime criadoEm = LocalDateTime.now();
-    private LocalDateTime expiraEm;        // criadoEm + 30 min
+    private LocalDateTime createdAt = LocalDateTime.now();
+    private LocalDateTime expiraEm;
     private LocalDateTime pagoEm;
 
-    // Getters & Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -49,6 +48,12 @@ public class Inscricao {
 
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
+
+    public String getTelefone() { return telefone; }
+    public void setTelefone(String telefone) { this.telefone = telefone; }
+
+    public String getMetodoPagamento() { return metodoPagamento; }
+    public void setMetodoPagamento(String metodoPagamento) { this.metodoPagamento = metodoPagamento; }
 
     public Integer getNumPessoas() { return numPessoas; }
     public void setNumPessoas(Integer numPessoas) { this.numPessoas = numPessoas; }
@@ -65,8 +70,8 @@ public class Inscricao {
     public Double getValorTotal() { return valorTotal; }
     public void setValorTotal(Double valorTotal) { this.valorTotal = valorTotal; }
 
-    public LocalDateTime getCriadoEm() { return criadoEm; }
-    public void setCriadoEm(LocalDateTime criadoEm) { this.criadoEm = criadoEm; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
     public LocalDateTime getExpiraEm() { return expiraEm; }
     public void setExpiraEm(LocalDateTime expiraEm) { this.expiraEm = expiraEm; }

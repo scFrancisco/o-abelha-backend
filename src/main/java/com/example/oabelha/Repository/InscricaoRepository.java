@@ -11,7 +11,9 @@ import java.util.Optional;
 
 public interface InscricaoRepository extends JpaRepository<Inscricao, Long> {
 
-    List<Inscricao> findByEventoIdOrderByCriadoEmDesc(Long eventoId);
+    List<Inscricao> findAllByOrderByCreatedAtDesc();
+
+    List<Inscricao> findByEventoIdOrderByCreatedAtDesc(Long eventoId);
 
     List<Inscricao> findByEventoIdAndEstado(Long eventoId, Estado estado);
 
@@ -19,13 +21,12 @@ public interface InscricaoRepository extends JpaRepository<Inscricao, Long> {
 
     Optional<Inscricao> findByCodigoConfirmacao(String codigo);
 
-    // Conta lugares ocupados (confirmados + pendentes ainda válidos)
+    // Conta lugares ocupados: confirmados, aceites e pendentes ainda válidos
     @Query("SELECT COALESCE(SUM(i.numPessoas), 0) FROM Inscricao i " +
             "WHERE i.evento.id = :eventoId " +
-            "AND i.estado IN ('CONFIRMADO', 'PENDENTE') " +
-            "AND (i.estado = 'CONFIRMADO' OR i.expiraEm > :agora)")
+            "AND (i.estado = 'CONFIRMADO' OR i.estado = 'ACEITE' " +
+            "  OR (i.estado = 'PENDENTE' AND i.expiraEm > :agora))")
     int contarLugaresOcupados(Long eventoId, LocalDateTime agora);
 
-    // Busca pendentes expirados para limpeza
     List<Inscricao> findByEstadoAndExpiraEmBefore(Estado estado, LocalDateTime agora);
 }
